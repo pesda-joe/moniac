@@ -64,7 +64,7 @@ const flows = {
     from: "treasury",
     to: "hh",
     params: {level: 35},
-    outflow: ({tanks, params}) => Math.min(params.level, tanks.treasury.level),
+    outflow: ({params}) => params.level,
     describe: ({params}) => `Government spending is £${params.level}.`
   },
   i: {
@@ -88,27 +88,46 @@ const flows = {
 const cams = {
   constant: {
     name: "Constant",
-    params: {value: 1},
+    spec: {
+      value: { default: 1, min: 0, max: 100 },
+    },
     curve: (x, p) => p.value,
   },
   linear: {
     name: "Linear",
-    params: {slope: 1, intercept: 0},
-    curve: (x, p) => p.slope * x + p.intercept,
+    spec: {
+      slope:     { default: 0.01, min: -0.1, max: 0.1 },
+      intercept: { default: 0,    min: -100, max: 100 },
+    },
+    curve: (x, p) => {
+      const a = p.slope * x + p.intercept;
+      const b = Math.max(Math.min(a, 1), 0);
+      return b;
+    },
   },
   sigmoid: {
     name: "Complex",
-    params: {max: 1, midpoint: 0, sharpness: 1},
+    spec: {
+      max:       { default: 0.5, min: 0,    max: 1   },
+      midpoint:  { default: 0,   min: -100, max: 100 },
+      sharpness: { default: 1,   min: -5,   max: 5   },
+    },
     curve: (x, p) => p.max / (1 + Math.exp(-p.sharpness * (x - p.midpoint))),
   },
 }
 
 // === SIMULATION TICK ===
 
+function clampFlow(v, flow, dt) {
+  if (v < 0) return 0;
+  if (!tanks[flow.from]) return v;
+  return Math.min(v, tanks[flow.from].level / dt);
+}
+
 function tick(dt) {
   // First, evaluate all cams
   // cam.value     = cam.curve()      = scalar for outflow
-  // cam.listInput = flow.cam.input() = float level in the tank
+  // cam.lastInput = flow.cam.input() = float level in the tank
   for (const flow of Object.values(flows)) {
     if (flow.cam){
       const x = flow.cam.input(tanks);
@@ -120,7 +139,8 @@ function tick(dt) {
   // Next, evaluate flow rates
   // flow.value = flow.outflow()
   for (const flow of Object.values(flows)) {
-    flow.value = flow.outflow({tanks, flows, joins, cam: flow.cam, params: flow.params});
+    const rawFlow = flow.outflow({tanks, flows, joins, cam: flow.cam, params: flow.params});
+    flow.value = clampFlow(rawFlow, flow, dt);
   }
 
   // Finally, update all the tanks

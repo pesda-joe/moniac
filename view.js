@@ -76,8 +76,10 @@ function mountInspector(container, flow) { // flows are read in somehow, very us
     flow.cam.type = newType; // change the cam
     flow.cam.params = flow.cam.savedParams[newType]
       ? {...flow.cam.savedParams[newType]} // if params saved in cache, use them
-      : {...cams[newType].params} // if not, get them from default
-    buildSliders(); 
+      : Object.fromEntries(                // if not, pull defaults out of the spec
+          Object.entries(cams[newType].spec).map(([k, s]) => [k, s.default])
+        );
+    buildSliders();
   })
 
   // --- Param sliders (rebuilt whenever cam type changes) --------------------
@@ -86,7 +88,9 @@ function mountInspector(container, flow) { // flows are read in somehow, very us
 
   function buildSliders() {
     slidersContainer.innerHTML = "";  // wipe whatever was there
-    for (const [paramName, value] of Object.entries(flow.cam.params)) {
+    for (const [paramName, currentValue] of Object.entries(flow.cam.params)) {
+      const spec = cams[flow.cam.type].spec[paramName];
+
       const row = document.createElement("div");
       row.className = "param-row";
 
@@ -95,20 +99,21 @@ function mountInspector(container, flow) { // flows are read in somehow, very us
 
       const slider = document.createElement("input");
       slider.type = "range";
-      // Crude defaults — fine for now, you can per-param-tune later.
-      slider.min = -5; slider.max = 20; slider.step = 0.01;
-      slider.value = value;
+      slider.min  = spec.min;
+      slider.max  = spec.max;
+      slider.step = (spec.max - spec.min) / 200;
+      slider.value = currentValue;
 
       const display = document.createElement("span");
       display.className = "value";
-      display.textContent = (+value).toFixed(2);
+      display.textContent = (+currentValue).toFixed(2);
 
       slider.addEventListener("input", (e) => {
         const v = parseFloat(e.target.value);
         flow.cam.params[paramName] = v;
         display.textContent = v.toFixed(2);
       })
-      
+
       row.appendChild(label);
       row.appendChild(slider);
       row.appendChild(display);
@@ -127,14 +132,18 @@ function mountInspector(container, flow) { // flows are read in somehow, very us
   const ctx = canvas.getContext("2d");
 
   // x range to plot over. Later this should be configurable per flow.
+  const margin = {top: 2, right: 2, bottom: 22, left: 36};
+  const plotW = canvas.width - margin.left - margin.right;
+  const plotH = canvas.height - margin.top - margin.bottom;
+  
   const xRange = [0, 20];
   const yRange = [0, 0.25];   // tune to your max param's plausible range
 
   function pixelx(x) {
-    return (x - xRange[0]) / (xRange[1] - xRange[0]) * canvas.width;
+    return margin.left + (x - xRange[0]) / (xRange[1] - xRange[0]) * plotW;
   } 
   function pixely(y) {
-    return canvas.height - (y - yRange[0]) / (yRange[1] - yRange[0]) * canvas.height;
+    return margin.top + plotH - (y - yRange[0]) / (yRange[1] - yRange[0]) * plotH;
   }
 
   function drawCurve() {
