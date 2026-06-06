@@ -55,11 +55,11 @@ function mountInspector(container, flow) { // flows are read in somehow, very us
   const camTypeLabel = document.createElement("label");
   camTypeLabel.textContent = "Cam shape:"; // label the drop-down
   const camTypeSelect = document.createElement("select");
-  // populate drop-down with cams library
-  for (const camId of Object.keys(cams)) {
+  // populate drop-down with camsLibrary
+  for (const camId of Object.keys(camsLibrary)) {
     const opt = document.createElement("option");
     opt.value = camId;
-    opt.textContent = cams[camId].name;
+    opt.textContent = camsLibrary[camId].name;
     if (camId === flow.cam.type) opt.selected = true;
     camTypeSelect.appendChild(opt);
   }
@@ -77,7 +77,7 @@ function mountInspector(container, flow) { // flows are read in somehow, very us
     flow.cam.params = flow.cam.savedParams[newType]
       ? {...flow.cam.savedParams[newType]} // if params saved in cache, use them
       : Object.fromEntries(                // if not, pull defaults out of the spec
-          Object.entries(cams[newType].spec).map(([k, s]) => [k, s.default])
+          Object.entries(camsLibrary[newType].spec).map(([k, s]) => [k, s.default])
         );
     buildSliders();
   })
@@ -89,7 +89,7 @@ function mountInspector(container, flow) { // flows are read in somehow, very us
   function buildSliders() {
     slidersContainer.innerHTML = "";  // wipe whatever was there
     for (const [paramName, currentValue] of Object.entries(flow.cam.params)) {
-      const spec = cams[flow.cam.type].spec[paramName];
+      const spec = camsLibrary[flow.cam.type].spec[paramName];
 
       const row = document.createElement("div");
       row.className = "param-row";
@@ -124,7 +124,7 @@ function mountInspector(container, flow) { // flows are read in somehow, very us
 
   // --- Curve preview canvas -------------------------------------------------
   const canvas = document.createElement("canvas");
-  canvas.className = "curve"; // get name from cams library
+  canvas.className = "curve"; // get name from camsLibrary
   canvas.width = 320;
   canvas.height = 200;
   container.appendChild(canvas);
@@ -152,7 +152,7 @@ function mountInspector(container, flow) { // flows are read in somehow, very us
     const N = 100; // Choose large-ish sampling
     for (let i = 0; i <= N; i++){
       const x = xRange[0] + (xRange[1] - xRange[0]) * i / N; // select next x point
-      const y = cams[flow.cam.type].curve(x, flow.cam.params); // calculate y
+      const y = camsLibrary[flow.cam.type].curve(x, flow.cam.params); // calculate y
       if (i == 0) ctx.moveTo(pixelx(x), pixely(y)); // in the first instance, start the line
       else ctx.lineTo(pixelx(x), pixely(y)); // continue the line to the next y
     }
