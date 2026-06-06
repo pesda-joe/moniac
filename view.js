@@ -29,67 +29,60 @@ const initialTotal = Object.values(tanks).reduce((s, t) => s + t.level, 0);
 // ============================================================
 // Inspector panel
 // ------------------------------------------------------------
-// For now this is hardcoded to inspect the `savings` flow.
-// Generalising to "the flow the user is currently hovering"
-// comes later.
+// mountInspector(container, flow) builds the top-level panel for
+// a single flow. For cam-mode flows it delegates to mountCam,
+// one editor per entry in flow.valve.cams.
 // ============================================================
 
-function mountInspector(container, flow) { // flows are read in somehow, very useful
-  // --- Functional pieces --------------------------------------------------
-  flow.cam.savedParams ??= {[flow.cam.type]: {...flow.cam.params}}; // Set up params cache
-  
-  // --- Header + description -------------------------------------------------
-  const header = document.createElement("div");
-  header.className = "panel-header";
-  header.textContent = flow.name; // Take panel heaeding from flow name
-  container.appendChild(header); 
+function mountCam(container, cam, camName) {
+  // Per-cam memory of params when the user switches cam types.
+  cam.savedParams ??= { [cam.type]: { ...cam.params } };
 
-  const describe = document.createElement("div");
-  describe.className = "panel-describe";
-  describe.textContent = flow.describe({ params: flow.params, flows }); // Use description of flow for subheading
-  container.appendChild(describe);
+  // --- Cam name header ----------------------------------------------------
+  const camHeader = document.createElement("div");
+  camHeader.className = "cam-header";
+  camHeader.textContent = camName;
+  container.appendChild(camHeader);
 
-  // --- Cam type dropdown ----------------------------------------------------
+  // --- Cam type dropdown --------------------------------------------------
   const camTypeRow = document.createElement("div");
-  camTypeRow.className = "cam-type-row"; // make space for the drop-down
+  camTypeRow.className = "cam-type-row";
   const camTypeLabel = document.createElement("label");
-  camTypeLabel.textContent = "Cam shape:"; // label the drop-down
+  camTypeLabel.textContent = "Cam shape:";
   const camTypeSelect = document.createElement("select");
-  // populate drop-down with camsLibrary
   for (const camId of Object.keys(camsLibrary)) {
     const opt = document.createElement("option");
     opt.value = camId;
     opt.textContent = camsLibrary[camId].name;
-    if (camId === flow.cam.type) opt.selected = true;
+    if (camId === cam.type) opt.selected = true;
     camTypeSelect.appendChild(opt);
   }
   camTypeRow.appendChild(camTypeLabel);
   camTypeRow.appendChild(camTypeSelect);
   container.appendChild(camTypeRow);
 
-  // Listen for change in drop-down
-  camTypeSelect.addEventListener("change", (e) => {
-    const oldType = flow.cam.type; // Capture cam before applying change
-    flow.cam.savedParams[oldType] = {...flow.cam.params}; // Save parameters
+  camTypeSelect.addEventListener("change", () => {
+    const oldType = cam.type;
+    cam.savedParams[oldType] = { ...cam.params };
 
-    const newType = camTypeSelect.value; // Get selected type
-    flow.cam.type = newType; // change the cam
-    flow.cam.params = flow.cam.savedParams[newType]
-      ? {...flow.cam.savedParams[newType]} // if params saved in cache, use them
-      : Object.fromEntries(                // if not, pull defaults out of the spec
+    const newType = camTypeSelect.value;
+    cam.type = newType;
+    cam.params = cam.savedParams[newType]
+      ? { ...cam.savedParams[newType] }
+      : Object.fromEntries(
           Object.entries(camsLibrary[newType].spec).map(([k, s]) => [k, s.default])
         );
     buildSliders();
-  })
+  });
 
-  // --- Param sliders (rebuilt whenever cam type changes) --------------------
+  // --- Param sliders (rebuilt whenever cam type changes) ------------------
   const slidersContainer = document.createElement("div");
   container.appendChild(slidersContainer);
 
   function buildSliders() {
-    slidersContainer.innerHTML = "";  // wipe whatever was there
-    for (const [paramName, currentValue] of Object.entries(flow.cam.params)) {
-      const spec = camsLibrary[flow.cam.type].spec[paramName];
+    slidersContainer.innerHTML = "";
+    for (const [paramName, currentValue] of Object.entries(cam.params)) {
+      const spec = camsLibrary[cam.type].spec[paramName];
 
       const row = document.createElement("div");
       row.className = "param-row";
@@ -110,9 +103,9 @@ function mountInspector(container, flow) { // flows are read in somehow, very us
 
       slider.addEventListener("input", (e) => {
         const v = parseFloat(e.target.value);
-        flow.cam.params[paramName] = v;
+        cam.params[paramName] = v;
         display.textContent = v.toFixed(2);
-      })
+      });
 
       row.appendChild(label);
       row.appendChild(slider);
@@ -122,64 +115,102 @@ function mountInspector(container, flow) { // flows are read in somehow, very us
   }
   buildSliders();
 
-  // --- Curve preview canvas -------------------------------------------------
+  // --- Curve preview canvas -----------------------------------------------
   const canvas = document.createElement("canvas");
-  canvas.className = "curve"; // get name from camsLibrary
+  canvas.className = "curve";
   canvas.width = 320;
-  canvas.height = 200;
+  canvas.height = 160;
   container.appendChild(canvas);
 
   const ctx = canvas.getContext("2d");
 
-  // x range to plot over. Later this should be configurable per flow.
-  const margin = {top: 2, right: 2, bottom: 22, left: 36};
-  const plotW = canvas.width - margin.left - margin.right;
-  const plotH = canvas.height - margin.top - margin.bottom;
-  
-  const xRange = [0, 20];
-  const yRange = [0, 0.25];   // tune to your max param's plausible range
+  const margin = { top: 2, right: 2, bottom: 22, left: 36 };
+  const plotW = canvas.width  - margin.left - margin.right;
+  const plotH = canvas.height - margin.top  - margin.bottom;
+
+  // Hardcoded for now. Tank levels live around 0..200, cams output 0..1.
+  const xRange = [0, 200];
+  const yRange = [0, 1];
 
   function pixelx(x) {
     return margin.left + (x - xRange[0]) / (xRange[1] - xRange[0]) * plotW;
-  } 
+  }
   function pixely(y) {
     return margin.top + plotH - (y - yRange[0]) / (yRange[1] - yRange[0]) * plotH;
   }
 
   function drawCurve() {
-    ctx.clearRect(0,0,canvas.width, canvas.height); // clear the canvas
-    ctx.beginPath(); // start drawing
-    const N = 100; // Choose large-ish sampling
-    for (let i = 0; i <= N; i++){
-      const x = xRange[0] + (xRange[1] - xRange[0]) * i / N; // select next x point
-      const y = camsLibrary[flow.cam.type].curve(x, flow.cam.params); // calculate y
-      if (i == 0) ctx.moveTo(pixelx(x), pixely(y)); // in the first instance, start the line
-      else ctx.lineTo(pixelx(x), pixely(y)); // continue the line to the next y
-    }
-    ctx.strokeStyle = "#000" // draw in black
-    ctx.stroke(); // defauly style
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    ctx.beginPath(); // start path for indicator dot
-    ctx.arc(pixelx(flow.cam.lastInput), pixely(flow.cam.value), 4, 0, 2*Math.PI); // draw small circle centred on indicator
-    ctx.fillStyle = "tomato";
-    ctx.fill();
+    ctx.beginPath();
+    const N = 100;
+    for (let i = 0; i <= N; i++) {
+      const x = xRange[0] + (xRange[1] - xRange[0]) * i / N;
+      const y = camsLibrary[cam.type].curve(x, cam.params);
+      if (i === 0) ctx.moveTo(pixelx(x), pixely(y));
+      else         ctx.lineTo(pixelx(x), pixely(y));
+    }
+    ctx.strokeStyle = "#000";
+    ctx.stroke();
+
+    if (cam.lastInput !== undefined && cam.value !== undefined) {
+      ctx.beginPath();
+      ctx.arc(pixelx(cam.lastInput), pixely(cam.value), 4, 0, 2 * Math.PI);
+      ctx.fillStyle = "tomato";
+      ctx.fill();
+    }
   }
 
-  // --- Current value readout ------------------------------------------------
+  return function updateCam() {
+    drawCurve();
+  };
+}
+
+
+function mountInspector(container, flow) {
+  // --- Header + description -----------------------------------------------
+  const header = document.createElement("div");
+  header.className = "panel-header";
+  header.textContent = flow.name;
+  container.appendChild(header);
+
+  if (flow.describe) {
+    const describe = document.createElement("div");
+    describe.className = "panel-describe";
+    describe.textContent = flow.describe({ valve: flow.valve, flows });
+    container.appendChild(describe);
+  }
+
+  // --- Cam editors (one per entry in flow.valve.cams) ---------------------
+  const updaters = [];
+  if (flow.valve?.mode === "cam") {
+    for (const [camName, cam] of Object.entries(flow.valve.cams)) {
+      const camPanel = document.createElement("div");
+      camPanel.className = "cam-panel";
+      container.appendChild(camPanel);
+      updaters.push(mountCam(camPanel, cam, camName));
+    }
+  } else {
+    const note = document.createElement("div");
+    note.className = "panel-note";
+    note.textContent = `Mode: ${flow.valve?.mode ?? "derived"} — no cam controls.`;
+    container.appendChild(note);
+  }
+
+  // --- Current value readout ----------------------------------------------
   const readout = document.createElement("div");
   readout.className = "readout";
   container.appendChild(readout);
 
-  // --- The update function the animation loop will call --------------------
   return function updateInspector() {
-    drawCurve();
+    updaters.forEach(u => u());
     readout.textContent = `Current rate: ${(flow.value ?? 0).toFixed(2)} £/sec`;
   };
 }
 
 const updateInspector = mountInspector(
-  document.getElementById("inspector"), // don't see wher ethis element gets instantiated
-  flows.savings // don't quite understand how flows come in here from main.js
+  document.getElementById("inspector"),
+  flows.savings
 );
 
 

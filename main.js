@@ -12,7 +12,7 @@ const joins = {
   r: {name: "Final income"},
 }
 
-// === FLOWS ===
+// === FLOWS ====================================================================
 // from/to:   node ids for the tank or join
 // outflow:   formula that takes params or cam to produce the size of the flow
 // describe:  pure text description of the flor for the inspector
@@ -59,7 +59,7 @@ const flows = {
         propensityToSave: {
           type: "linear",
           input: ({tanks}) => tanks.m1.level,
-          params: {slope: 0.01, intercept: 1},
+          params: {slope: -0.01, intercept: 0.05},
         },
         interestEffect: {
           type: "sigmoid",
@@ -184,7 +184,7 @@ const camsLibrary = {
   constant: {
     name: "Constant",
     spec: {
-      value: { default: 1, min: 0, max: 100 },
+      value: { default: 0.01, min: 0, max: 1 },
     },
     curve: (x, p) => p.value,
   },
@@ -212,7 +212,7 @@ const camsLibrary = {
   },
 }
 
-// === SIMULATION TICK ===
+// === SIMULATION TICK =====================================================================
 
 function clampFlow(v, flow, dt) {
   if (v < 0) return 0;
@@ -225,6 +225,7 @@ function computeValve(valve, inflow){
     case "rate": return Math.min(valve.rate, inflow);
     case "fraction": return valve.fraction * inflow;
     case "cam": {
+      const camArr = Object.values(valve.cams);
       const mean = camArr.reduce((sum, c) => sum + c.value, 0) / camArr.length;
       return mean * inflow;
     }
