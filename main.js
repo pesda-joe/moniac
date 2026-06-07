@@ -6,7 +6,7 @@ const tanks = {
       name: "Interest rate", symbol: "i",
       cam: {
         type: "sigmoid",
-        params: {min: 0.005, max: 0.15, midpoint: 0, sharpness: -0.05},
+        params: {min: 0.005, max: 0.15, midpoint: 100, sharpness: -0.05},
       },
     },
   },
@@ -86,7 +86,7 @@ const flows = {
         interestEffect: {
           type:   "sigmoid",
           input:  ({tanks}) => tanks.m2.signal.value,
-          params: {min: 0.05, max: 0.3, midpoint: 100, sharpness: -0.5},
+          params: {min: 0.05, max: 0.3, midpoint: 0.06, sharpness: -0.5},
         },
       }, 
     },
@@ -134,7 +134,7 @@ const flows = {
         investmentEfficiency: {
           type: "sigmoid",
           input: ({tanks}) => tanks.m2.signal.value,
-          params: {min: 0, max: 0.1, midpoint: 100, sharpness: 0.1},
+          params: {min: 0, max: 0.1, midpoint: 0.06, sharpness: 0.1},
         },
       },
     },
@@ -158,7 +158,7 @@ const flows = {
         exchangeElasticityExpenditure: {
           type: "sigmoid",
           input: ({tanks}) => tanks.m3.signal.value,
-          params: {min:  0.03, max: 0.1, midpoint: 100, sharpness: -0.2},
+          params: {min:  0.03, max: 0.1, midpoint: 0.5, sharpness: -0.2},
         },
       },
     },
@@ -188,7 +188,7 @@ const flows = {
         exchangeElasticityExpenditure: {
           type: "sigmoid",
           input: ({tanks}) => tanks.m3.signal.value,
-          params: {min:  0.03, max: 0.1, midpoint: 100, sharpness: 0.2},
+          params: {min:  0.03, max: 0.1, midpoint: 0.5, sharpness: 0.2},
         },
       },
     },
