@@ -1,15 +1,37 @@
 // stocks
 const tanks = {
-  m1: {name: "Active money", level: 100},
-  m2: {name: "Inactive money", level: 100},
-  m3: {name: "Foreign reserves", level: 50}
+  m1: {name: "Active money",     level: 100},
+  m2: {name: "Inactive money",   level: 100,
+    signal: {
+      name: "Interest rate", symbol: "i",
+      cam: {
+        type: "sigmoid",
+        params: {min: 0.005, max: 0.15, midpoint: 0, sharpness: -0.05},
+      },
+    },
+  },
+  m3: {name: "Foreign reserves", level: 50,
+    signal: {
+      name: "Exchange rate", symbol: "e",
+      cam: {
+        type: "exponential",
+        params: {base: 1, rate: -0.01},
+      },
+    },
+  },
 }
 
 // joins
 const joins = {
-  y: {name: "Private incomes"},
+  y:  {name: "Private incomes"},
   hh: {name: "Domestic spending"},
-  r: {name: "Final income"},
+  r:  {name: "Final income"},
+}
+
+// controls
+const controls = {
+  m2peg: {target: 100, open: false, rate: 5},
+  m3peg: {target: 50,  open: false, rate: 5}
 }
 
 // === FLOWS ====================================================================
@@ -57,13 +79,13 @@ const flows = {
       fraction: 0.1,
       cams: { 
         propensityToSave: {
-          type: "linear",
-          input: ({tanks}) => tanks.m1.level,
+          type:  "linear",
+          input:  ({tanks}) => tanks.m1.level,
           params: {slope: -0.01, intercept: 0.05},
         },
         interestEffect: {
-          type: "sigmoid",
-          input: ({tanks}) => tanks.m2.level,
+          type:   "sigmoid",
+          input:  ({tanks}) => tanks.m2.signal.value,
           params: {min: 0.05, max: 0.3, midpoint: 100, sharpness: -0.5},
         },
       }, 
@@ -111,7 +133,7 @@ const flows = {
         },
         investmentEfficiency: {
           type: "sigmoid",
-          input: ({tanks}) => tanks.m2.level,
+          input: ({tanks}) => tanks.m2.signal.value,
           params: {min: 0, max: 0.1, midpoint: 100, sharpness: 0.1},
         },
       },
@@ -135,7 +157,7 @@ const flows = {
         },
         exchangeElasticityExpenditure: {
           type: "sigmoid",
-          input: ({tanks}) => tanks.m3.level,
+          input: ({tanks}) => tanks.m3.signal.value,
           params: {min:  0.03, max: 0.1, midpoint: 100, sharpness: -0.2},
         },
       },
@@ -165,7 +187,7 @@ const flows = {
         },
         exchangeElasticityExpenditure: {
           type: "sigmoid",
-          input: ({tanks}) => tanks.m3.level,
+          input: ({tanks}) => tanks.m3.signal.value,
           params: {min:  0.03, max: 0.1, midpoint: 100, sharpness: 0.2},
         },
       },
@@ -178,8 +200,53 @@ const flows = {
     to: "m1",
     outflow: ({flows}) => flows.dx.value + flows.exports.value,
   },
+
+  m2PegInject: {
+    name: "Open-market injection",
+    // no from:
+    to: "m2",
+    outflow: ({tanks, controls}) => {
+      const p = controls.m2peg;
+      if (!p.open) return 0;
+      return Math.max(0, (p.target - tanks.m2.level) * p.rate)
+    },
+  },
+
+  m2PegDrain: {
+    name: "Open-market drain",
+    from: "m2",
+    // no to:
+    outflow: ({tanks, controls}) => {
+      const p = controls.m2peg;
+      if (!p.open) return 0;
+      return Math.max(0, (tanks.m2.level - p.target) * p.rate);
+    },
+  },
+
+  m3PegInject: {
+    name: "Exchange control injection",
+    // no from:
+    to: "m3",
+    outflow: ({tanks, controls}) => {
+      const p = controls.m3peg;
+      if (!p.open) return 0;
+      return Math.max(0, (p.target - tanks.m3.level) * p.rate)
+    },
+  },
+
+  m3PegDrain: {
+    name: "Exchange control drain",
+    from: "m3",
+    // no to:
+    outflow: ({tanks, controls}) => {
+      const p = controls.m3peg;
+      if (!p.open) return 0;
+      return Math.max(0, (tanks.m3.level - p.target) * p.rate);
+    },
+  },
 }
 
+// === CAMS ======================================================================
 const camsLibrary = {
   constant: {
     name: "Constant",
@@ -200,13 +267,21 @@ const camsLibrary = {
       return b;
     },
   },
+  exponential: {
+    name: "Exponential",
+    spec: {
+      base: {default: 1, min: 0.01, max: 10},
+      rate: {default: 0.01, min: -1, max: 1},
+    },
+    curve: (x, p) => p.base * Math.exp(p.rate * x),
+  },
   sigmoid: {
     name: "Complex",
     spec: {
       min:       { default: 0,   min: 0,    max: 1   },
       max:       { default: 0.5, min: 0,    max: 1   },
-      midpoint:  { default: 0,   min: -100, max: 100 },
-      sharpness: { default: 1,   min: -5,   max: 5   },
+      midpoint:  { default: 0,   min: -200, max: 200 },
+      sharpness: { default: 1,   min: -0.5, max: 0.5   },
     },
     curve: (x, p) => p.min + (p.max - p.min) / (1 + Math.exp(-p.sharpness * (x - p.midpoint))),
   },
@@ -233,7 +308,13 @@ function computeValve(valve, inflow){
 }
 
 function tick(dt) {
-  // First, evaluate all cams
+  //First, evaluate signal floats
+  for (const tank of Object.values(tanks)) {
+    if (!tank.signal) continue;
+    tank.signal.value = camsLibrary[tank.signal.cam.type].curve(tank.level, tank.signal.cam.params);
+  }
+
+  // Then, evaluate all cams
   // cam.value     = cam.curve()      = scalar for outflow
   // cam.lastInput = flow.cam.input() = float level in the tank
   for (const flow of Object.values(flows)) {
@@ -248,7 +329,7 @@ function tick(dt) {
   // Next, evaluate flow rates
   // flow.value = flow.outflow()
   for (const flow of Object.values(flows)) {
-    const rawFlow = flow.outflow({tanks, flows, joins, valve: flow.valve});
+    const rawFlow = flow.outflow({tanks, flows, joins, controls, valve: flow.valve});
     flow.value = clampFlow(rawFlow, flow, dt);
   }
 
