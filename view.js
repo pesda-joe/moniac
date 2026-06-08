@@ -167,6 +167,95 @@ function mountCam(container, cam, camName) {
 }
 
 
+// One-slider mode panels (rate, fraction). Built once and toggled by display
+// so the user's last position is preserved when they switch modes back.
+
+function mountRatePanel(container, flow) {
+  const panel = document.createElement("div");
+  panel.className = "mode-panel rate-panel";
+
+  const row = document.createElement("div");
+  row.className = "param-row";
+
+  const label = document.createElement("label");
+  label.textContent = "rate (£/sec)";
+
+  const slider = document.createElement("input");
+  slider.type  = "range";
+  slider.min   = 0;
+  slider.max   = 200;
+  slider.step  = 0.5;
+  slider.value = flow.valve.rate;
+
+  const display = document.createElement("span");
+  display.className = "value";
+  display.textContent = (+flow.valve.rate).toFixed(2);
+
+  slider.addEventListener("input", (e) => {
+    const v = parseFloat(e.target.value);
+    flow.valve.rate = v;
+    display.textContent = v.toFixed(2);
+  });
+
+  row.appendChild(label);
+  row.appendChild(slider);
+  row.appendChild(display);
+  panel.appendChild(row);
+  container.appendChild(panel);
+  return panel;
+}
+
+function mountFractionPanel(container, flow) {
+  const panel = document.createElement("div");
+  panel.className = "mode-panel fraction-panel";
+
+  const row = document.createElement("div");
+  row.className = "param-row";
+
+  const label = document.createElement("label");
+  label.textContent = "fraction";
+
+  const slider = document.createElement("input");
+  slider.type  = "range";
+  slider.min   = 0;
+  slider.max   = 1;
+  slider.step  = 0.005;
+  slider.value = flow.valve.fraction;
+
+  const display = document.createElement("span");
+  display.className = "value";
+  display.textContent = (+flow.valve.fraction).toFixed(2);
+
+  slider.addEventListener("input", (e) => {
+    const v = parseFloat(e.target.value);
+    flow.valve.fraction = v;
+    display.textContent = v.toFixed(2);
+  });
+
+  row.appendChild(label);
+  row.appendChild(slider);
+  row.appendChild(display);
+  panel.appendChild(row);
+  container.appendChild(panel);
+  return panel;
+}
+
+function mountCamPanel(container, flow) {
+  const panel = document.createElement("div");
+  panel.className = "mode-panel cam-mode-panel";
+
+  const updaters = [];
+  for (const [camName, cam] of Object.entries(flow.valve.cams)) {
+    const camPanel = document.createElement("div");
+    camPanel.className = "cam-panel";
+    panel.appendChild(camPanel);
+    updaters.push(mountCam(camPanel, cam, camName));
+  }
+
+  container.appendChild(panel);
+  return { panel, updaters };
+}
+
 function mountInspector(container, flow) {
   // --- Header + description -----------------------------------------------
   const header = document.createElement("div");
@@ -181,19 +270,55 @@ function mountInspector(container, flow) {
     container.appendChild(describe);
   }
 
-  // --- Cam editors (one per entry in flow.valve.cams) ---------------------
-  const updaters = [];
-  if (flow.valve?.mode === "cam") {
-    for (const [camName, cam] of Object.entries(flow.valve.cams)) {
-      const camPanel = document.createElement("div");
-      camPanel.className = "cam-panel";
-      container.appendChild(camPanel);
-      updaters.push(mountCam(camPanel, cam, camName));
+  let updaters = [];
+
+  if (flow.valve) {
+    // --- Mode dropdown ----------------------------------------------------
+    const modeRow = document.createElement("div");
+    modeRow.className = "mode-row";
+
+    const modeLabel = document.createElement("label");
+    modeLabel.textContent = "Valve mode:";
+
+    const modeSelect = document.createElement("select");
+    for (const mode of ["rate", "fraction", "cam"]) {
+      const opt = document.createElement("option");
+      opt.value = mode;
+      opt.textContent = mode;
+      if (mode === flow.valve.mode) opt.selected = true;
+      modeSelect.appendChild(opt);
     }
+    modeRow.appendChild(modeLabel);
+    modeRow.appendChild(modeSelect);
+    container.appendChild(modeRow);
+
+    // --- All three mode panels (built up front, toggled by display) -------
+    const ratePanel     = mountRatePanel(container, flow);
+    const fractionPanel = mountFractionPanel(container, flow);
+    const camResult     = mountCamPanel(container, flow);
+    updaters = camResult.updaters;
+
+    const panels = {
+      rate:     ratePanel,
+      fraction: fractionPanel,
+      cam:      camResult.panel,
+    };
+
+    function showMode(mode) {
+      for (const [m, p] of Object.entries(panels)) {
+        p.style.display = m === mode ? "" : "none";
+      }
+    }
+    showMode(flow.valve.mode);
+
+    modeSelect.addEventListener("change", () => {
+      flow.valve.mode = modeSelect.value;
+      showMode(modeSelect.value);
+    });
   } else {
     const note = document.createElement("div");
     note.className = "panel-note";
-    note.textContent = `Mode: ${flow.valve?.mode ?? "derived"} — no cam controls.`;
+    note.textContent = "Derived flow — no valve controls.";
     container.appendChild(note);
   }
 
@@ -203,16 +328,27 @@ function mountInspector(container, flow) {
   container.appendChild(readout);
 
   return function updateInspector() {
-    updaters.forEach(u => u());
+    updaters.forEach((u) => u());
     readout.textContent = `Current rate: ${(flow.value ?? 0).toFixed(2)} £/sec`;
   };
 }
 
-const updateInspector = mountInspector(
-  document.getElementById("inspector"),
-  flows.savings
-);
+function switchInspector(flow) {
+  inspectorEl.innerHTML = "";
+  updateInspector = mountInspector(inspectorEl, flow);
+}
 
+const inspectorEl = document.getElementById("inspector-content");
+let updateInspector = mountInspector(inspectorEl, flows.savings);
+const flowSelect = document.getElementById("flow-select");
+for (const [id, flow] of Object.entries(flows)) {
+  const opt = document.createElement("option");
+  opt.value = id;
+  opt.textContent = flow.name;
+  flowSelect.appendChild(opt);
+}
+flowSelect.value = "savings";
+flowSelect.addEventListener("change", () => switchInspector(flows[flowSelect.value]));
 
 // ============================================================
 // Per-frame update + animation loop
