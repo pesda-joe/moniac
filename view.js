@@ -366,6 +366,7 @@ function draw() {
   conservationEl.textContent =
     `total = ${total.toFixed(4)}   drift from start: ${(total - initialTotal).toExponential(2)}`;
 
+  drawSchematic();
   updateInspector();
 }
 

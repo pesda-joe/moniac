@@ -1,7 +1,8 @@
 // stocks
+// pos.x, pos.y are the schematic centre point of the tank box. Canvas is 600x800.
 const tanks = {
-  m1: {name: "Active money",     level: 100},
-  m2: {name: "Inactive money",   level: 100,
+  m1: {name: "Active money",     level: 100, pos: {x: 300, y: 700}},
+  m2: {name: "Inactive money",   level: 100, pos: {x: 150, y: 220},
     signal: {
       name: "Interest rate", symbol: "i",
       cam: {
@@ -10,7 +11,7 @@ const tanks = {
       },
     },
   },
-  m3: {name: "Foreign reserves", level: 50,
+  m3: {name: "Foreign reserves", level: 50,  pos: {x: 450, y: 470},
     signal: {
       name: "Exchange rate", symbol: "e",
       cam: {
@@ -22,10 +23,11 @@ const tanks = {
 }
 
 // joins
+// pos.x, pos.y are the schematic centre point of the junction circle.
 const joins = {
-  y:  {name: "Private incomes"},
-  hh: {name: "Domestic spending"},
-  r:  {name: "Final income"},
+  y:  {name: "Private incomes",   pos: {x: 300, y: 60}},
+  hh: {name: "Domestic spending", pos: {x: 300, y: 360}},
+  r:  {name: "Final income",      pos: {x: 300, y: 580}},
 }
 
 // controls
