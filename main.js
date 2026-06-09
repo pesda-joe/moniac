@@ -2,7 +2,7 @@
 // pos.x, pos.y are the schematic centre point of the tank box. Canvas is 600x800.
 const tanks = {
   m1: {name: "Active money",     level: 100, pos: {x: 300, y: 700}},
-  m2: {name: "Inactive money",   level: 100, pos: {x: 150, y: 220},
+  m2: {name: "Inactive money",   level: 100, pos: {x: 450, y: 220},
     signal: {
       name: "Interest rate", symbol: "i",
       cam: {
@@ -51,6 +51,7 @@ const flows = {
     name: "Household income",
     from: "m1",
     to: "y",
+    via: {x: 100, y: 380},   // bend the long m1→y pump out to the left
     outflow: ({tanks}) => tanks.m1.level,
     describe: () => `Income is 100% of M1 by definition.`,
   },
@@ -58,6 +59,7 @@ const flows = {
     name: "Taxes",
     from: "y",
     to: "m2",
+    toOffset: {dx: -20, dy: -60},   // land on top-left of m2
     valve: {
       mode: "fraction",
       rate: 30,
@@ -75,6 +77,7 @@ const flows = {
     name: "Private savings",
     from: "y",
     to: "m2",
+    toOffset: {dx: 20, dy: -60},   // land on top-right of m2
     valve: {
       mode: "cam",
       rate: 10,
@@ -106,6 +109,7 @@ const flows = {
     name: "Government spending",
     from: "m2",
     to: "hh",
+    fromOffset: {dx: -20, dy: 60},   // leave from bottom-left of m2
     valve: {
       mode: "rate",
       rate: 35,
@@ -123,6 +127,7 @@ const flows = {
     name: "Investment",
     from: "m2",
     to: "hh",
+    fromOffset: {dx: 20, dy: 60},   // leave from bottom-right of m2
     valve: {
       mode: "cam",
       rate: 20,

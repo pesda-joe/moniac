@@ -36,3 +36,22 @@ td.label { color: #666; }
 td.num   { text-align: right; min-width: 6em; }
 
 #conservation { color: #999; font-size: 0.85em; margin-top: 1em; }
+
+/* --- Schematic SVG ------------------------------------------------------ */
+#schematic { display: block; background: #fafafa; border: 1px solid #eee; }
+
+.tank-outline { fill: none; stroke: #333; stroke-width: 2; }
+.tank-fill    { fill: rgba(80, 140, 210, 0.45); }
+.tank-name    { font: 12px ui-monospace, Menlo, monospace; fill: #000; }
+.tank-level   { font: bold 13px ui-monospace, Menlo, monospace; fill: #000; }
+.tank-signal  { font: 11px ui-monospace, Menlo, monospace; fill: #444; }
+
+.join-circle { fill: #d8d8d8; stroke: #333; stroke-width: 1.5; }
+.join-name   { font: 11px ui-monospace, Menlo, monospace; fill: #000; }
+
+.flow-line       { stroke: #555; }
+.flow-arrowhead  { fill: #444; }
+.flow-label      { cursor: pointer; }
+.flow-label:hover .flow-label-bg { fill: #fff8d0; }
+.flow-label-bg   { fill: rgba(255, 255, 255, 0.92); stroke: #888; stroke-width: 0.5; }
+.flow-label-text { font: 11px ui-monospace, Menlo, monospace; fill: #000; pointer-events: none; }

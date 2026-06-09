@@ -1,4 +1,22 @@
 // ============================================================
+// HiDPI helper — still needed for the cam curve canvases.
+// Makes a raster canvas crisp on retina / 4K displays by sizing
+// the bitmap to cssSize × devicePixelRatio and pre-scaling the
+// context so existing drawing code keeps using logical coords.
+// ============================================================
+
+function setupHiDPICanvas(canvas, cssW, cssH) {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width  = cssW * dpr;
+  canvas.height = cssH * dpr;
+  canvas.style.width  = cssW + "px";
+  canvas.style.height = cssH + "px";
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  return ctx;
+}
+
+// ============================================================
 // Tank and flow tables (system view)
 // ============================================================
 
@@ -118,15 +136,15 @@ function mountCam(container, cam, camName) {
   // --- Curve preview canvas -----------------------------------------------
   const canvas = document.createElement("canvas");
   canvas.className = "curve";
-  canvas.width = 320;
-  canvas.height = 160;
   container.appendChild(canvas);
 
-  const ctx = canvas.getContext("2d");
+  const CURVE_W = 320;
+  const CURVE_H = 160;
+  const ctx = setupHiDPICanvas(canvas, CURVE_W, CURVE_H);
 
   const margin = { top: 2, right: 2, bottom: 22, left: 36 };
-  const plotW = canvas.width  - margin.left - margin.right;
-  const plotH = canvas.height - margin.top  - margin.bottom;
+  const plotW = CURVE_W - margin.left - margin.right;
+  const plotH = CURVE_H - margin.top  - margin.bottom;
 
   // Hardcoded for now. Tank levels live around 0..200, cams output 0..1.
   const xRange = [0, 200];
@@ -140,7 +158,7 @@ function mountCam(container, cam, camName) {
   }
 
   function drawCurve() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, CURVE_W, CURVE_H);
 
     ctx.beginPath();
     const N = 100;
